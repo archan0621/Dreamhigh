@@ -178,38 +178,53 @@ struct ApplicationDetailSidebar: View {
                 
                 // 마크다운 에디터 & 뷰어 (노션 스타일 인라인 편집)
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("내용")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("내용")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                        
+                        // 편집/보기 모드 전환 버튼
+                        Button {
+                            isEditingContent.toggle()
+                        } label: {
+                            Label(isEditingContent ? "보기" : "편집", systemImage: isEditingContent ? "eye" : "pencil")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                     
-                            ScrollView {
-                                if content.isEmpty {
-                                    Text("내용을 추가하세요")
-                                        .foregroundStyle(.tertiary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding()
-                                        .onTapGesture {
-                                            // 빈 상태에서 클릭하면 새 단락 추가
-                                            content = ""
-                                            store.updateContent(id: item.id, content: "")
-                                        }
-                                } else {
-                                    EditableMarkdownView(content: $content) { newContent in
-                                        // 이미지 경로가 붙여넣어진 경우 자동으로 처리
-                                        processImagePaths(in: newContent, oldContent: content)
-                                        store.updateContent(id: item.id, content: content)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding()
+                    ScrollView {
+                        if content.isEmpty && !isEditingContent {
+                            Text("내용을 추가하세요")
+                                .foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .onTapGesture {
+                                    // 빈 상태에서 클릭하면 편집 모드로 전환
+                                    isEditingContent = true
                                 }
+                        } else {
+                            EditableMarkdownView(
+                                content: $content,
+                                isEditing: $isEditingContent
+                            ) { newContent in
+                                // 이미지 경로가 붙여넣어진 경우 자동으로 처리
+                                processImagePaths(in: newContent, oldContent: content)
+                                store.updateContent(id: item.id, content: content)
                             }
-                            .frame(minHeight: 400)
-                            .background(.regularMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .contentShape(Rectangle())
-                            .onDrop(of: [.image, .fileURL], isTargeted: nil) { providers in
-                                handleImageDrop(providers: providers)
-                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                        }
+                    }
+                    .frame(minHeight: 400)
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .contentShape(Rectangle())
+                    .onDrop(of: [.image, .fileURL], isTargeted: nil) { providers in
+                        handleImageDrop(providers: providers)
+                    }
                 }
             }
             .padding()
@@ -250,7 +265,6 @@ struct ApplicationDetailSidebar: View {
             documentStatus: documentStatus?.rawValue ?? "",
             techInterviewStatus: techInterviewStatus?.rawValue ?? "",
             cultureInterviewStatus: cultureInterviewStatus?.rawValue ?? "",
-            resumeId: resumeId,
             resumeVersionId: selectedResumeVersionId
         )
     }

@@ -2,71 +2,71 @@ import SwiftUI
 
 struct EditableMarkdownView: View {
     @Binding var content: String
+    @Binding var isEditing: Bool
     let onContentChange: (String) -> Void
     
-    @State private var isEditing = false
     @FocusState private var isFocused: Bool
     
+    init(content: Binding<String>, isEditing: Binding<Bool>, onContentChange: @escaping (String) -> Void) {
+        self._content = content
+        self._isEditing = isEditing
+        self.onContentChange = onContentChange
+    }
+    
+    // 기존 초기화 메서드 유지 (하위 호환성)
+    init(content: Binding<String>, onContentChange: @escaping (String) -> Void) {
+        self._content = content
+        self._isEditing = Binding(
+            get: { false },
+            set: { _ in }
+        )
+        self.onContentChange = onContentChange
+    }
+    
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            if isEditing {
-                // 편집 모드: 전체 마크다운을 TextEditor로 표시
-                VStack(spacing: 0) {
-                    TextEditor(text: $content)
-                        .font(.system(.body))
-                        .frame(minHeight: 400)
-                        .padding(8)
-                        .scrollContentBackground(.hidden)
-                        .background(Color.clear)
-                        .focused($isFocused)
-                        .onChange(of: content) { oldValue, newValue in
-                            // 실시간 저장은 하지 않고, 보기 모드로 전환할 때만 저장
-                        }
-                        .onAppear {
-                            isFocused = true
-                        }
-                }
-                .background(Color.clear)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    // TextEditor 외부 여백 클릭 시 보기 모드로 전환
+        if isEditing {
+            // 편집 모드: 전체 마크다운을 TextEditor로 표시
+            VStack(spacing: 0) {
+                TextEditor(text: $content)
+                    .font(.system(.body))
+                    .frame(minHeight: 400)
+                    .padding(8)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .focused($isFocused)
+                    .onChange(of: content) { oldValue, newValue in
+                        // 실시간 저장은 하지 않고, 보기 모드로 전환할 때만 저장
+                    }
+                    .onAppear {
+                        isFocused = true
+                    }
+            }
+            .background(Color.clear)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // TextEditor 외부 여백 클릭 시 보기 모드로 전환
+                onContentChange(content)
+                isEditing = false
+            }
+            .onChange(of: isFocused) { oldValue, newValue in
+                // 포커스를 잃으면 보기 모드로 전환
+                if !newValue && isEditing {
                     onContentChange(content)
                     isEditing = false
                 }
-                .onChange(of: isFocused) { oldValue, newValue in
-                    // 포커스를 잃으면 보기 모드로 전환
-                    if !newValue && isEditing {
-                        onContentChange(content)
-                        isEditing = false
-                    }
-                }
-            } else {
-                // 보기 모드: MarkdownView로 표시 (이미지 사이즈 조절 포함)
-                MarkdownView(content: content) { url, alt, newWidth in
-                    updateImageWidthInContent(url: url, alt: alt, newWidth: newWidth)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    // 보기 모드에서 클릭하면 편집 모드로 전환
-                    isEditing = true
-                }
             }
-            
-            // 편집/보기 모드 전환 버튼
-            Button {
-                if isEditing {
-                    // 편집 모드 종료 시 저장
-                    onContentChange(content)
-                }
-                isEditing.toggle()
-            } label: {
-                Label(isEditing ? "보기" : "편집", systemImage: isEditing ? "eye" : "pencil")
+        } else {
+            // 보기 모드: MarkdownView로 표시 (이미지 사이즈 조절 포함)
+            MarkdownView(content: content) { url, alt, newWidth in
+                updateImageWidthInContent(url: url, alt: alt, newWidth: newWidth)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // 보기 모드에서 클릭하면 편집 모드로 전환
+                isEditing = true
+            }
         }
     }
     

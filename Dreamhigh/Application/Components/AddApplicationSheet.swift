@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreData
 
 enum CompanyCategory: String, CaseIterable {
     case foreign = "외국계"
@@ -24,14 +25,16 @@ struct AddApplicationSheet: View {
     @State private var documentStatus: InterviewStatus?
     @State private var techInterviewStatus: InterviewStatus?
     @State private var cultureInterviewStatus: InterviewStatus?
-    @State private var resumeId = ""
+    @State private var selectedResumeVersionId: UUID?
+    @StateObject private var resumeStore: ResumeVersionStore
     
     let item: ApplyHistory?
-    let onSave: (String, Date, String, String, String, String, String) -> Void
+    let onSave: (String, Date, String, String, String, String, UUID?) -> Void
     
-    init(item: ApplyHistory? = nil, onSave: @escaping (String, Date, String, String, String, String, String) -> Void) {
+    init(item: ApplyHistory? = nil, context: NSManagedObjectContext, onSave: @escaping (String, Date, String, String, String, String, UUID?) -> Void) {
         self.item = item
         self.onSave = onSave
+        _resumeStore = StateObject(wrappedValue: ResumeVersionStore(context: context))
     }
 
     var body: some View {
@@ -113,13 +116,19 @@ struct AddApplicationSheet: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 16) {
-                        Label("기타", systemImage: "ellipsis.circle")
+                        Label("이력서", systemImage: "doc.on.doc")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         
-                        FormField(label: "이력서 ID", icon: "doc.on.doc") {
-                            TextField("예: R-001", text: $resumeId)
-                                .textFieldStyle(.plain)
+                        FormField(label: "이력서 버전", icon: "doc.on.doc") {
+                            Picker("", selection: $selectedResumeVersionId) {
+                                Text("선택 안함").tag(nil as UUID?)
+                                ForEach(resumeStore.getAllVersions(), id: \.id) { version in
+                                    Text(version.name).tag(version.id as UUID?)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
                         }
                         .padding()
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -136,7 +145,7 @@ struct AddApplicationSheet: View {
                     documentStatus = InterviewStatus.allCases.first { $0.rawValue == item.documentStatus }
                     techInterviewStatus = InterviewStatus.allCases.first { $0.rawValue == item.techInterviewStatus }
                     cultureInterviewStatus = InterviewStatus.allCases.first { $0.rawValue == item.cultureInterviewStatus }
-                    resumeId = item.resumeId
+                    selectedResumeVersionId = item.resumeVersionId
                 }
             }
             .toolbar {
@@ -153,7 +162,7 @@ struct AddApplicationSheet: View {
                             documentStatus?.rawValue ?? "",
                             techInterviewStatus?.rawValue ?? "",
                             cultureInterviewStatus?.rawValue ?? "",
-                            resumeId.trimmingCharacters(in: .whitespacesAndNewlines)
+                            selectedResumeVersionId
                         )
                         dismiss()
                     } label: {

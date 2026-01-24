@@ -170,7 +170,7 @@ struct ApplicationsPage: View {
             }
         }
         .sheet(isPresented: $isPresentingAdd) {
-            AddApplicationSheet { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeId in
+            AddApplicationSheet(context: context) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeVersionId in
                 self.store.create(
                     companyName: companyName,
                     appliedAt: appliedAt,
@@ -178,12 +178,12 @@ struct ApplicationsPage: View {
                     documentStatus: documentStatus,
                     techInterviewStatus: techInterviewStatus,
                     cultureInterviewStatus: cultureInterviewStatus,
-                    resumeId: resumeId
+                    resumeVersionId: resumeVersionId
                 )
             }
         }
         .sheet(item: $editingItem) { item in
-            AddApplicationSheet(item: item) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeId in
+            AddApplicationSheet(item: item, context: context) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeVersionId in
                 self.store.update(
                     id: item.id,
                     companyName: companyName,
@@ -192,7 +192,7 @@ struct ApplicationsPage: View {
                     documentStatus: documentStatus,
                     techInterviewStatus: techInterviewStatus,
                     cultureInterviewStatus: cultureInterviewStatus,
-                    resumeId: resumeId
+                    resumeVersionId: resumeVersionId
                 )
                 tableSelection.removeAll()
             }

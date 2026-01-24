@@ -65,7 +65,7 @@ final class ApplyHistoryStore : ObservableObject {
         documentStatus: String,
         techInterviewStatus: String,
         cultureInterviewStatus: String,
-        resumeId: String
+        resumeVersionId: UUID? = nil
     ) {
         let entity = ApplyHistoryEntity(context: context)
         entity.id = UUID()
@@ -75,7 +75,7 @@ final class ApplyHistoryStore : ObservableObject {
         entity.docStatus = documentStatus
         entity.techInterview = techInterviewStatus
         entity.cultureInterview = cultureInterviewStatus
-        entity.resumeId = resumeId
+        entity.resumeId = resumeVersionId?.uuidString ?? ""
         entity.createdAt = Date()
         entity.updatedAt = Date()
         
@@ -95,7 +95,6 @@ final class ApplyHistoryStore : ObservableObject {
         documentStatus: String,
         techInterviewStatus: String,
         cultureInterviewStatus: String,
-        resumeId: String,
         resumeVersionId: UUID? = nil
     ) {
         let request = ApplyHistoryEntity.fetchRequest()
@@ -109,8 +108,7 @@ final class ApplyHistoryStore : ObservableObject {
                 entity.docStatus = documentStatus
                 entity.techInterview = techInterviewStatus
                 entity.cultureInterview = cultureInterviewStatus
-                // resumeVersionId가 있으면 UUID 문자열로 저장, 없으면 기존 resumeId 사용
-                entity.resumeId = resumeVersionId?.uuidString ?? resumeId
+                entity.resumeId = resumeVersionId?.uuidString ?? ""
                 entity.updatedAt = Date()
                 
                 try context.save()

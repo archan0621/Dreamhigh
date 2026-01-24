@@ -39,6 +39,14 @@ final class ApplyHistoryStore : ObservableObject {
                     return nil
                 }()
                 
+                // 구조화된 채용공고 정보 파싱
+                let structuredJobPosting: StructuredJobPosting? = {
+                    guard let jsonData = entity.structuredJobPostingData?.data(using: .utf8) else {
+                        return nil
+                    }
+                    return try? JSONDecoder().decode(StructuredJobPosting.self, from: jsonData)
+                }()
+                
                 return ApplyHistory(
                     id: entity.id!,
                     companyName: entity.company ?? "",
@@ -49,7 +57,9 @@ final class ApplyHistoryStore : ObservableObject {
                     cultureInterviewStatus: entity.cultureInterview ?? "",
                     resumeId: entity.resumeId ?? "",
                     resumeVersionId: resumeVersionId,
-                    content: entity.content ?? ""
+                    jobPostingURL: entity.jobPostingURL,
+                    content: entity.content ?? "",
+                    structuredJobPosting: structuredJobPosting
                 )
             }
             
@@ -65,7 +75,8 @@ final class ApplyHistoryStore : ObservableObject {
         documentStatus: String,
         techInterviewStatus: String,
         cultureInterviewStatus: String,
-        resumeVersionId: UUID? = nil
+        resumeVersionId: UUID? = nil,
+        jobPostingURL: String? = nil
     ) {
         let entity = ApplyHistoryEntity(context: context)
         entity.id = UUID()
@@ -76,6 +87,7 @@ final class ApplyHistoryStore : ObservableObject {
         entity.techInterview = techInterviewStatus
         entity.cultureInterview = cultureInterviewStatus
         entity.resumeId = resumeVersionId?.uuidString ?? ""
+        entity.jobPostingURL = jobPostingURL
         entity.createdAt = Date()
         entity.updatedAt = Date()
         
@@ -95,7 +107,8 @@ final class ApplyHistoryStore : ObservableObject {
         documentStatus: String,
         techInterviewStatus: String,
         cultureInterviewStatus: String,
-        resumeVersionId: UUID? = nil
+        resumeVersionId: UUID? = nil,
+        jobPostingURL: String? = nil
     ) {
         let request = ApplyHistoryEntity.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
@@ -109,6 +122,7 @@ final class ApplyHistoryStore : ObservableObject {
                 entity.techInterview = techInterviewStatus
                 entity.cultureInterview = cultureInterviewStatus
                 entity.resumeId = resumeVersionId?.uuidString ?? ""
+                entity.jobPostingURL = jobPostingURL
                 entity.updatedAt = Date()
                 
                 try context.save()
@@ -143,6 +157,27 @@ final class ApplyHistoryStore : ObservableObject {
         do {
             if let entity = try context.fetch(request).first {
                 entity.content = content
+                entity.updatedAt = Date()
+                
+                try context.save()
+                fetch()
+            }
+        } catch {
+            // 에러 처리 (필요시 로깅 시스템으로 대체)
+        }
+    }
+    
+    func updateStructuredJobPosting(id: UUID, structuredJobPosting: StructuredJobPosting) {
+        let request = ApplyHistoryEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        
+        do {
+            if let entity = try context.fetch(request).first {
+                // StructuredJobPosting을 JSON으로 인코딩
+                if let jsonData = try? JSONEncoder().encode(structuredJobPosting),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    entity.structuredJobPostingData = jsonString
+                }
                 entity.updatedAt = Date()
                 
                 try context.save()

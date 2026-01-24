@@ -18,14 +18,10 @@ struct ResumeVersionsPage: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(store.getAllVersions()) { version in
-                        ResumeVersionCard(version: version)
+                        ResumeVersionCard(version: version, isSelected: selectedVersion?.id == version.id)
                             .onTapGesture {
                                 selectedVersion = version
                             }
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(selectedVersion?.id == version.id ? Color.accentColor.opacity(0.1) : Color.clear)
-                            )
                     }
                 }
                 .padding()
@@ -61,6 +57,7 @@ struct ResumeVersionsPage: View {
 
 struct ResumeVersionCard: View {
     let version: ResumeVersion
+    let isSelected: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -74,6 +71,7 @@ struct ResumeVersionCard: View {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(Color.gray.opacity(0.1))
                     )
+                    .allowsHitTesting(false)
             } else {
                 // 썸네일 없을 때 플레이스홀더
                 ZStack {
@@ -130,7 +128,16 @@ struct ResumeVersionCard: View {
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(.regularMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 2)
+                )
         )
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+        .contentShape(Rectangle())
         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
     
@@ -152,6 +159,7 @@ struct PDFThumbnailView: NSViewRepresentable {
         pdfView.autoScales = true
         pdfView.displayMode = .singlePage
         pdfView.displayDirection = .vertical
+        // 상호작용은 SwiftUI 레벨에서 allowsHitTesting(false)로 제어
         return pdfView
     }
     

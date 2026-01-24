@@ -22,16 +22,17 @@ struct AddApplicationSheet: View {
     @State private var companyName = ""
     @State private var appliedAt = Date()
     @State private var selectedCategory: CompanyCategory?
-    @State private var documentStatus: InterviewStatus?
-    @State private var techInterviewStatus: InterviewStatus?
-    @State private var cultureInterviewStatus: InterviewStatus?
+    @State private var documentStatus: InterviewStatus? = .pending
+    @State private var techInterviewStatus: InterviewStatus? = .pending
+    @State private var cultureInterviewStatus: InterviewStatus? = .pending
     @State private var selectedResumeVersionId: UUID?
+    @State private var jobPostingURL = ""
     @StateObject private var resumeStore: ResumeVersionStore
     
     let item: ApplyHistory?
-    let onSave: (String, Date, String, String, String, String, UUID?) -> Void
+    let onSave: (String, Date, String, String, String, String, UUID?, String?) -> Void
     
-    init(item: ApplyHistory? = nil, context: NSManagedObjectContext, onSave: @escaping (String, Date, String, String, String, String, UUID?) -> Void) {
+    init(item: ApplyHistory? = nil, context: NSManagedObjectContext, onSave: @escaping (String, Date, String, String, String, String, UUID?, String?) -> Void) {
         self.item = item
         self.onSave = onSave
         _resumeStore = StateObject(wrappedValue: ResumeVersionStore(context: context))
@@ -47,12 +48,12 @@ struct AddApplicationSheet: View {
                             .foregroundStyle(.secondary)
                         
                         VStack(spacing: 16) {
-                            FormField(label: "회사명", icon: "building.2.fill") {
+                            FormField(label: "회사명", icon: "building.2.fill", isRequired: true) {
                                 TextField("회사명을 입력하세요", text: $companyName)
                                     .textFieldStyle(.plain)
                             }
                             
-                            FormField(label: "지원일자", icon: "calendar") {
+                            FormField(label: "지원일자", icon: "calendar", isRequired: true) {
                                 DatePicker("", selection: $appliedAt, displayedComponents: .date)
                                     .labelsHidden()
                             }
@@ -133,6 +134,19 @@ struct AddApplicationSheet: View {
                         .padding()
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }
+                    
+                    VStack(alignment: .leading, spacing: 16) {
+                        Label("채용공고", systemImage: "link")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        
+                        FormField(label: "채용공고 링크", icon: "link") {
+                            TextField("https://...", text: $jobPostingURL)
+                                .textFieldStyle(.plain)
+                        }
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
                 }
                 .padding()
             }
@@ -146,6 +160,7 @@ struct AddApplicationSheet: View {
                     techInterviewStatus = InterviewStatus.allCases.first { $0.rawValue == item.techInterviewStatus }
                     cultureInterviewStatus = InterviewStatus.allCases.first { $0.rawValue == item.cultureInterviewStatus }
                     selectedResumeVersionId = item.resumeVersionId
+                    jobPostingURL = item.jobPostingURL ?? ""
                 }
             }
             .toolbar {
@@ -162,7 +177,8 @@ struct AddApplicationSheet: View {
                             documentStatus?.rawValue ?? "",
                             techInterviewStatus?.rawValue ?? "",
                             cultureInterviewStatus?.rawValue ?? "",
-                            selectedResumeVersionId
+                            selectedResumeVersionId,
+                            jobPostingURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : jobPostingURL.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
                         dismiss()
                     } label: {
@@ -180,14 +196,29 @@ struct AddApplicationSheet: View {
 struct FormField<Content: View>: View {
     let label: String
     let icon: String
+    let isRequired: Bool
     @ViewBuilder let content: Content
+    
+    init(label: String, icon: String, isRequired: Bool = false, @ViewBuilder content: () -> Content) {
+        self.label = label
+        self.icon = icon
+        self.isRequired = isRequired
+        self.content = content()
+    }
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Label {
-                Text(label)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    Text(label)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                    if isRequired {
+                        Text("*")
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
             } icon: {
                 Image(systemName: icon)
                     .foregroundStyle(.secondary)

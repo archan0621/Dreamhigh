@@ -17,5 +17,9 @@ struct DreamhighApp: App {
             ContentView()
                 .environment(\.managedObjectContext, persistence.container.viewContext)
         }
+        
+        Settings {
+            SettingsView()
+        }
     }
 }

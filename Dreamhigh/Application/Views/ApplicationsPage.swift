@@ -170,7 +170,7 @@ struct ApplicationsPage: View {
             }
         }
         .sheet(isPresented: $isPresentingAdd) {
-            AddApplicationSheet(context: context) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeVersionId in
+            AddApplicationSheet(context: context) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeVersionId, jobPostingURL in
                 self.store.create(
                     companyName: companyName,
                     appliedAt: appliedAt,
@@ -178,12 +178,13 @@ struct ApplicationsPage: View {
                     documentStatus: documentStatus,
                     techInterviewStatus: techInterviewStatus,
                     cultureInterviewStatus: cultureInterviewStatus,
-                    resumeVersionId: resumeVersionId
+                    resumeVersionId: resumeVersionId,
+                    jobPostingURL: jobPostingURL
                 )
             }
         }
         .sheet(item: $editingItem) { item in
-            AddApplicationSheet(item: item, context: context) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeVersionId in
+            AddApplicationSheet(item: item, context: context) { companyName, appliedAt, category, documentStatus, techInterviewStatus, cultureInterviewStatus, resumeVersionId, jobPostingURL in
                 self.store.update(
                     id: item.id,
                     companyName: companyName,
@@ -192,7 +193,8 @@ struct ApplicationsPage: View {
                     documentStatus: documentStatus,
                     techInterviewStatus: techInterviewStatus,
                     cultureInterviewStatus: cultureInterviewStatus,
-                    resumeVersionId: resumeVersionId
+                    resumeVersionId: resumeVersionId,
+                    jobPostingURL: jobPostingURL
                 )
                 tableSelection.removeAll()
             }

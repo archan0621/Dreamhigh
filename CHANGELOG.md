@@ -63,6 +63,45 @@
 - `ApplyHistory` 모델에 `structuredJobPosting` 필드 추가
 - 분석 결과 저장/로드 로직 구현 (`ApplyHistoryStore.updateStructuredJobPosting`)
 
+### 5. 이력서 AI 피드백 기능 ✅
+- CoreData에 AI 피드백 저장 필드 추가 (`aiFeedbackData`)
+- `ResumeFeedback` 도메인 모델 구현
+  - 종합 점수 (0-100)
+  - 첫인상 (3-5줄 요약)
+  - 강점 목록 (기술적 강점, 사고방식/태도, 차별점)
+  - 개선점 및 약점 목록
+  - 면접 예상 질문 목록
+  - 섹션별 상세 피드백 (경력, 프로젝트 등)
+  - 총평 (CTO 관점)
+  - 생성 일시
+- AI 프롬프트 작성 (시니어 면접관 관점)
+  - 첫인상, 구조/레이아웃, 인간미/태도, 성과/문제해결력, 대외활동, 면접관 판단 기준
+  - JSON 출력 형식 명시
+- `ClaudeAIService`에 이력서 분석 구현
+  - PDF Vision API 사용 (base64 인코딩)
+  - 타임아웃 120초 (PDF 분석용)
+  - `analyzeResume(pdfPath:)` 메서드
+- `ResumeVersionDetailView`에 피드백 UI 구현
+  - "피드백 받기" 버튼 (로딩 상태 표시)
+  - 피드백 결과 표시 뷰 (`ResumeFeedbackView`)
+  - 점수별 색상 표시 (80+ 초록, 60-79 파랑, 40-59 주황, 40 미만 빨강)
+  - 강점/개선점 아이콘 및 리스트
+  - 면접 질문 번호 매김
+  - 섹션별 평가 카드
+- AI 토큰 없을 시 기능 비활성화 및 안내 메시지
+- CoreData 재조회 로직으로 영속성 보장
+
+### 6. UI/UX 전반 개선 ✅
+- App Store 스타일 사이드바 구현
+  - 메뉴 아이콘 및 텍스트 크기 증가
+  - 간격 조정 (spacing: 8, padding: 4)
+  - 깔끔한 레이아웃
+- 이력서 버전 목록 페이지 개선
+  - NavigationStack 기반 네비게이션
+  - 카드 형태 그리드 레이아웃
+  - PDF 썸네일 미리보기
+  - App Store 스타일 상세보기 전환
+
 ## 🔧 기술적 개선사항
 
 ### 크롤링 인프라

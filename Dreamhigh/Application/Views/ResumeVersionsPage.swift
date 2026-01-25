@@ -13,38 +13,35 @@ struct ResumeVersionsPage: View {
     }
     
     var body: some View {
-        HSplitView {
-            // 왼쪽: 버전 목록
+        NavigationStack {
+            // 목록 화면
             ScrollView {
-                LazyVStack(spacing: 12) {
+                LazyVGrid(columns: [
+                    GridItem(.adaptive(minimum: 200, maximum: 250), spacing: 16)
+                ], spacing: 16) {
                     ForEach(store.getAllVersions()) { version in
-                        ResumeVersionCard(version: version, isSelected: selectedVersion?.id == version.id)
+                        ResumeVersionCard(version: version)
                             .onTapGesture {
-                                selectedVersion = version
+                                self.selectedVersion = version
                             }
                     }
                 }
                 .padding()
             }
-            .frame(minWidth: 300, idealWidth: 350)
-            .background(.regularMaterial)
-            
-            // 오른쪽: 상세 뷰
-            if let selectedVersion = selectedVersion {
-                ResumeVersionDetailView(version: selectedVersion)
-                    .frame(minWidth: 500)
+            .navigationTitle("이력서 버전")
+            .navigationDestination(item: $selectedVersion) { version in
+                ResumeVersionDetailView(version: version, store: store)
             }
-        }
-        .navigationTitle("이력서 버전")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    isPresentingUpload = true
-                } label: {
-                    Label("새 버전 추가", systemImage: "plus.circle.fill")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isPresentingUpload = true
+                    } label: {
+                        Label("새 버전 추가", systemImage: "plus.circle.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
         }
         .sheet(isPresented: $isPresentingUpload) {
@@ -57,15 +54,14 @@ struct ResumeVersionsPage: View {
 
 struct ResumeVersionCard: View {
     let version: ResumeVersion
-    let isSelected: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 썸네일 (PDF 첫 페이지)
+        VStack(alignment: .leading, spacing: 8) {
+            // 썸네일 (PDF 첫 페이지) - 간소화
             if let pdfDocument = PDFDocument(url: URL(fileURLWithPath: version.filePath)),
                let firstPage = pdfDocument.page(at: 0) {
                 PDFThumbnailView(page: firstPage)
-                    .frame(height: 200)
+                    .frame(height: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .background(
                         RoundedRectangle(cornerRadius: 8)
@@ -73,72 +69,36 @@ struct ResumeVersionCard: View {
                     )
                     .allowsHitTesting(false)
             } else {
-                // 썸네일 없을 때 플레이스홀더
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.gray.opacity(0.1))
-                        .frame(height: 200)
+                        .frame(height: 120)
                     
-                    VStack(spacing: 8) {
-                        Image(systemName: "doc.text.fill")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.tertiary)
-                        Text("PDF 미리보기")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
+                    Image(systemName: "doc.text.fill")
+                        .font(.system(size: 30))
+                        .foregroundStyle(.tertiary)
                 }
             }
             
-            // 버전 정보
-            VStack(alignment: .leading, spacing: 6) {
+            // 버전 정보 - 간소화
+            VStack(alignment: .leading, spacing: 4) {
                 Text(version.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
                 
-                HStack(spacing: 8) {
-                    Spacer()
-                    
-                    // 날짜
-                    Text(version.createdAt.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                
-                // 파일 정보
-                HStack(spacing: 4) {
-                    Image(systemName: "doc.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("\(version.pageCount)페이지")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    
-                    Text(formatFileSize(version.fileSize))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                Text(version.createdAt.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 4)
         }
-        .padding()
+        .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(.regularMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 2)
-                )
-        )
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .contentShape(Rectangle())
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
     
     private func formatFileSize(_ bytes: Int64) -> String {
@@ -170,82 +130,181 @@ struct PDFThumbnailView: NSViewRepresentable {
 
 struct ResumeVersionDetailView: View {
     let version: ResumeVersion
+    @ObservedObject var store: ResumeVersionStore
+    
+    @State private var isAnalyzing = false
+    @State private var analysisError: String?
+    @State private var aiFeedback: ResumeFeedback?
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // 헤더
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(version.name)
-                        .font(.title)
-                        .fontWeight(.bold)
-                    
-                    Text(version.createdAt.formatted(date: .complete, time: .omitted))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Divider()
-                
-                // 파일 정보
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("파일 정보")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    
-                    HStack(spacing: 24) {
-                        InfoItem(label: "페이지 수", value: "\(version.pageCount)페이지")
-                        InfoItem(label: "파일 크기", value: formatFileSize(version.fileSize))
-                        InfoItem(label: "형식", value: "PDF")
-                    }
-                }
-                
-                Divider()
-                
-                // 메모
-                if !version.note.isEmpty {
+        HSplitView {
+            // 왼쪽: 정보 및 피드백
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // 헤더 (제목과 날짜)
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("메모")
+                        Text(version.name)
+                            .font(.title)
+                            .fontWeight(.bold)
+                        
+                        Text(version.createdAt.formatted(date: .complete, time: .omitted))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Divider()
+                    
+                    // 파일 정보
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("파일 정보")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         
-                        Text(version.note)
-                            .font(.body)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.regularMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        HStack(spacing: 24) {
+                            InfoItem(label: "페이지 수", value: "\(version.pageCount)페이지")
+                            InfoItem(label: "파일 크기", value: formatFileSize(version.fileSize))
+                            InfoItem(label: "형식", value: "PDF")
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // 메모
+                    if !version.note.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("메모")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            
+                            Text(version.note)
+                                .font(.body)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.regularMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // AI 피드백 섹션
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("AI 피드백")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            
+                            Spacer()
+                            
+                            Button(action: { analyzeResume() }) {
+                                if isAnalyzing {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .padding(.trailing, 8)
+                                } else {
+                                    Text("피드백 받기")
+                                }
+                            }
+                            .disabled(!SettingsStore.shared.isAIConfigured || isAnalyzing || aiFeedback != nil)
+                        }
+                        
+                        if let error = analysisError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.red.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        
+                        if let feedback = aiFeedback {
+                            ResumeFeedbackView(feedback: feedback)
+                        } else if !isAnalyzing && analysisError == nil {
+                            Text("이력서 분석을 시작하려면 '피드백 받기' 버튼을 눌러주세요.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(.regularMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
                     }
                 }
+                .padding(.horizontal)
+                .padding(.top, 0)
+                .padding(.bottom)
+            }
+            .frame(minWidth: 400, idealWidth: 500)
+            
+            // 오른쪽: PDF 미리보기
+            VStack(alignment: .leading, spacing: 12) {
+                Text("미리보기")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .padding(.top, 0)
                 
-                Divider()
-                
-                // PDF 미리보기
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("미리보기")
-                        .font(.headline)
+                if let pdfDocument = PDFDocument(url: URL(fileURLWithPath: version.filePath)) {
+                    PDFPreviewView(document: pdfDocument)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                        )
+                } else {
+                    Text("PDF를 불러올 수 없습니다")
                         .foregroundStyle(.secondary)
-                    
-                    if let pdfDocument = PDFDocument(url: URL(fileURLWithPath: version.filePath)) {
-                        PDFPreviewView(document: pdfDocument)
-                            .frame(height: 600)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.gray.opacity(0.1))
-                            )
-                    } else {
-                        Text("PDF를 불러올 수 없습니다")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .padding()
+            .frame(minWidth: 500, idealWidth: 600)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .navigationTitle(version.name)
+        .onAppear {
+            // 기존 피드백 로드
+            aiFeedback = version.aiFeedback
+        }
+        .onChange(of: version.id) { _, _ in
+            // 버전 변경 시 피드백 초기화
+            aiFeedback = version.aiFeedback
+            analysisError = nil
+        }
+    }
+    
+    private func analyzeResume() {
+        guard !isAnalyzing else { return }
+        guard SettingsStore.shared.isAIConfigured else { return }
+        
+        isAnalyzing = true
+        analysisError = nil
+        
+        Task {
+            do {
+                guard let aiService = AIServiceFactory.createServiceFromSettings() else {
+                    await MainActor.run {
+                        self.isAnalyzing = false
+                        self.analysisError = "AI 설정을 확인해주세요"
+                    }
+                    return
+                }
+                
+                let feedback = try await aiService.analyzeResume(pdfPath: version.filePath)
+                
+                await MainActor.run {
+                    self.aiFeedback = feedback
+                    self.isAnalyzing = false
+                    
+                    // CoreData에 저장
+                    store.updateAIFeedback(id: version.id, feedback: feedback)
+                }
+            } catch {
+                await MainActor.run {
+                    self.isAnalyzing = false
+                    self.analysisError = "분석 실패: \(error.localizedDescription)"
+                }
+            }
+        }
     }
     
     private func formatFileSize(_ bytes: Int64) -> String {
@@ -268,6 +327,174 @@ struct InfoItem: View {
             Text(value)
                 .font(.subheadline)
                 .fontWeight(.medium)
+        }
+    }
+}
+
+struct ResumeFeedbackView: View {
+    let feedback: ResumeFeedback
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // 전체 점수
+            HStack(spacing: 12) {
+                Text("종합 점수")
+                    .font(.headline)
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Text("\(feedback.overallScore)")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundStyle(scoreColor(feedback.overallScore))
+                    Text("/ 100")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .background(scoreColor(feedback.overallScore).opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            // 첫인상
+            VStack(alignment: .leading, spacing: 8) {
+                Text("첫인상")
+                    .font(.headline)
+                Text(feedback.firstImpression)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            // 강점
+            VStack(alignment: .leading, spacing: 8) {
+                Label("강점", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                
+                ForEach(feedback.strengths, id: \.self) { strength in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•")
+                            .foregroundStyle(.green)
+                        Text(strength)
+                            .font(.body)
+                    }
+                }
+            }
+            .padding()
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            // 개선점
+            VStack(alignment: .leading, spacing: 8) {
+                Label("개선점 및 약점", systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                
+                ForEach(feedback.improvements, id: \.self) { improvement in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•")
+                            .foregroundStyle(.orange)
+                        Text(improvement)
+                            .font(.body)
+                    }
+                }
+            }
+            .padding()
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            // 면접 예상 질문
+            VStack(alignment: .leading, spacing: 8) {
+                Label("면접 예상 질문", systemImage: "questionmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.blue)
+                
+                ForEach(Array(feedback.interviewQuestions.enumerated()), id: \.offset) { index, question in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("\(index + 1).")
+                            .foregroundStyle(.blue)
+                            .fontWeight(.semibold)
+                        Text(question)
+                            .font(.body)
+                    }
+                }
+            }
+            .padding()
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            // 섹션별 피드백
+            if !feedback.sectionFeedback.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("섹션별 평가")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    
+                    ForEach(feedback.sectionFeedback, id: \.sectionName) { section in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(section.sectionName)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                
+                                Spacer()
+                                
+                                Text("\(section.score)점")
+                                    .font(.caption)
+                                    .foregroundStyle(scoreColor(section.score))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(scoreColor(section.score).opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            
+                            Text(section.feedback)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background(.regularMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+            
+            // 총평
+            VStack(alignment: .leading, spacing: 8) {
+                Text("총평")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                
+                Text(feedback.summary)
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+            }
+            .padding()
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            // 생성 일시
+            Text("분석 일시: \(feedback.generatedAt.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+    
+    private func scoreColor(_ score: Int) -> Color {
+        switch score {
+        case 80...100:
+            return .green
+        case 60..<80:
+            return .blue
+        case 40..<60:
+            return .orange
+        default:
+            return .red
         }
     }
 }

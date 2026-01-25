@@ -31,14 +31,22 @@ final class ResumeVersionStore: ObservableObject {
             let entities = try context.fetch(request)
             
             self.versions = entities.map { entity in
-                ResumeVersion(
+                // AI 피드백 파싱
+                var aiFeedback: ResumeFeedback? = nil
+                if let feedbackDataString = entity.aiFeedbackData,
+                   let feedbackData = feedbackDataString.data(using: .utf8) {
+                    aiFeedback = try? JSONDecoder().decode(ResumeFeedback.self, from: feedbackData)
+                }
+                
+                return ResumeVersion(
                     id: entity.id!,
                     name: entity.name ?? "",
                     createdAt: entity.createdAt ?? Date(),
                     note: entity.note ?? "",
                     filePath: entity.filePath ?? "",
                     pageCount: Int(entity.pageCount),
-                    fileSize: entity.fileSize
+                    fileSize: entity.fileSize,
+                    aiFeedback: aiFeedback
                 )
             }
         } catch {
@@ -113,6 +121,28 @@ final class ResumeVersionStore: ObservableObject {
     
     func getAllVersions() -> [ResumeVersion] {
         return versions
+    }
+    
+    /// AI 피드백 저장
+    func updateAIFeedback(id: UUID, feedback: ResumeFeedback) {
+        let request = ResumeVersionEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        
+        do {
+            if let entity = try context.fetch(request).first {
+                // ResumeFeedback을 JSON 문자열로 인코딩
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let feedbackData = try encoder.encode(feedback)
+                entity.aiFeedbackData = String(data: feedbackData, encoding: .utf8)
+                
+                try context.save()
+                fetch()
+            }
+        } catch {
+            // 에러 처리 (필요시 로깅 시스템으로 대체)
+            print("AI 피드백 저장 실패: \(error)")
+        }
     }
 }
 

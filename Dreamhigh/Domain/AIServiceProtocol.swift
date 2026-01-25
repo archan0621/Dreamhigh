@@ -13,6 +13,11 @@ protocol AIServiceProtocol {
     /// - Parameter jobPostingText: 크롤링된 채용공고 원문
     /// - Returns: 구조화된 채용공고 정보
     func structureJobPosting(_ jobPostingText: String) async throws -> StructuredJobPosting
+    
+    /// 이력서 PDF를 분석하여 피드백 생성
+    /// - Parameter pdfPath: 이력서 PDF 파일 경로
+    /// - Returns: AI 피드백 결과
+    func analyzeResume(pdfPath: String) async throws -> ResumeFeedback
 }
 
 /// 구조화된 채용공고 정보

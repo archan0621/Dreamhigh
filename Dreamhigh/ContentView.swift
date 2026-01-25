@@ -5,15 +5,24 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var context
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            // 사이드바
             List(selection: $selection) {
                 ForEach(SidebarSection.allCases) { item in
-                    Label(item.rawValue, systemImage: item.icon)
-                        .tag(item)
+                    HStack(spacing: 8) {
+                        Image(systemName: item.icon)
+                            .font(.title2)
+                            .frame(width: 24)
+                        Text(item.rawValue)
+                            .font(.body)
+                    }
+                    .tag(item)
+                    .padding(.vertical, 4)
                 }
             }
             .listStyle(.sidebar)
             .navigationTitle("Dreamhigh")
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         } detail: {
             switch selection {
             case .applications:
@@ -25,6 +34,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 1100, minHeight: 620)
     }
 }

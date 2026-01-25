@@ -1,6 +1,6 @@
 import Foundation
 
-struct ResumeVersion: Identifiable {
+struct ResumeVersion: Identifiable, Hashable {
     let id: UUID
     let name: String
     let createdAt: Date
@@ -8,5 +8,6 @@ struct ResumeVersion: Identifiable {
     let filePath: String // PDF 파일 경로
     let pageCount: Int
     let fileSize: Int64 // bytes
+    let aiFeedback: ResumeFeedback? // AI 피드백
 }
 

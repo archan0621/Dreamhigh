@@ -35,7 +35,9 @@ final class ResumeVersionStore: ObservableObject {
                 var aiFeedback: ResumeFeedback? = nil
                 if let feedbackDataString = entity.aiFeedbackData,
                    let feedbackData = feedbackDataString.data(using: .utf8) {
-                    aiFeedback = try? JSONDecoder().decode(ResumeFeedback.self, from: feedbackData)
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    aiFeedback = try? decoder.decode(ResumeFeedback.self, from: feedbackData)
                 }
                 
                 return ResumeVersion(
@@ -141,7 +143,6 @@ final class ResumeVersionStore: ObservableObject {
             }
         } catch {
             // 에러 처리 (필요시 로깅 시스템으로 대체)
-            print("AI 피드백 저장 실패: \(error)")
         }
     }
 }

@@ -262,12 +262,20 @@ struct ResumeVersionDetailView: View {
         }
         .navigationTitle(version.name)
         .onAppear {
-            // 기존 피드백 로드
-            aiFeedback = version.aiFeedback
+            // CoreData에서 직접 다시 조회
+            if let storedVersion = store.getVersion(by: version.id) {
+                aiFeedback = storedVersion.aiFeedback
+            } else {
+                aiFeedback = version.aiFeedback
+            }
         }
-        .onChange(of: version.id) { _, _ in
-            // 버전 변경 시 피드백 초기화
-            aiFeedback = version.aiFeedback
+        .onChange(of: version.id) { _, newID in
+            // CoreData에서 직접 다시 조회
+            if let storedVersion = store.getVersion(by: newID) {
+                aiFeedback = storedVersion.aiFeedback
+            } else {
+                aiFeedback = version.aiFeedback
+            }
             analysisError = nil
         }
     }

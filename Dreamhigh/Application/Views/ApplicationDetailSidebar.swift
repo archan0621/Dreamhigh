@@ -347,6 +347,17 @@ struct ApplicationDetailSidebar: View {
                 
                 Divider()
                 
+                // 면접 질문/답변
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("면접 질문/답변")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    
+                    InterviewQuestionsSection(applicationId: item.id)
+                }
+                
+                Divider()
+                
                 // 마크다운 에디터 & 뷰어 (노션 스타일 인라인 편집)
                 // TODO: 다른 기능 구현 후 다시 활성화
                 /*

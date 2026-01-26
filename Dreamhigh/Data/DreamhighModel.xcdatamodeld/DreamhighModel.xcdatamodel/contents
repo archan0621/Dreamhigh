@@ -9,6 +9,7 @@
         <attribute name="cultureInterview" optional="YES" attributeType="String"/>
         <attribute name="docStatus" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="interviewQuestionsData" optional="YES" attributeType="String"/>
         <attribute name="jobPostingURL" optional="YES" attributeType="String"/>
         <attribute name="resumeId" optional="YES" attributeType="String"/>
         <attribute name="structuredJobPostingData" optional="YES" attributeType="String"/>

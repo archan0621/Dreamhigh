@@ -47,6 +47,16 @@ final class ApplyHistoryStore : ObservableObject {
                     return try? JSONDecoder().decode(StructuredJobPosting.self, from: jsonData)
                 }()
                 
+                // 면접 데이터 파싱
+                let interviewData: InterviewData? = {
+                    guard let jsonData = entity.interviewQuestionsData?.data(using: .utf8) else {
+                        return nil
+                    }
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    return try? decoder.decode(InterviewData.self, from: jsonData)
+                }()
+                
                 return ApplyHistory(
                     id: entity.id!,
                     companyName: entity.company ?? "",
@@ -59,7 +69,8 @@ final class ApplyHistoryStore : ObservableObject {
                     resumeVersionId: resumeVersionId,
                     jobPostingURL: entity.jobPostingURL,
                     content: entity.content ?? "",
-                    structuredJobPosting: structuredJobPosting
+                    structuredJobPosting: structuredJobPosting,
+                    interviewData: interviewData
                 )
             }
             
@@ -199,6 +210,27 @@ final class ApplyHistoryStore : ObservableObject {
             fetch()
         } catch {
             // 에러 처리 (필요시 로깅 시스템으로 대체)
+        }
+    }
+    
+    /// 면접 데이터 업데이트
+    func updateInterviewData(id: UUID, interviewData: InterviewData) {
+        let request = ApplyHistoryEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        
+        do {
+            if let entity = try context.fetch(request).first {
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let jsonData = try encoder.encode(interviewData)
+                entity.interviewQuestionsData = String(data: jsonData, encoding: .utf8)
+                entity.updatedAt = Date()
+                
+                try context.save()
+                fetch()
+            }
+        } catch {
+            // 에러 처리
         }
     }
 }

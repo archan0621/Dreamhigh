@@ -10,6 +10,8 @@ import SwiftUI
 // MARK: - 지원 내역 상세 페이지에 들어갈 섹션
 struct InterviewQuestionsSection: View {
     let applicationId: UUID
+    let item: ApplyHistory
+    @ObservedObject var store: ApplyHistoryStore
     
     @State private var selectedTab: InterviewTab = .codingOrAssignment
     @State private var questions: [InterviewQuestion] = []
@@ -119,11 +121,90 @@ struct InterviewQuestionsSection: View {
             AddInterviewQuestionSheet(
                 interviewType: selectedTab,
                 onSave: { question in
-                    // TODO: 실제 저장 로직
                     questions.append(question)
+                    saveInterviewData()
                 }
             )
         }
+        .onAppear {
+            loadInterviewData()
+        }
+        .onChange(of: selectedTab) { _, _ in
+            loadCurrentTabData()
+        }
+        .onChange(of: reflectionText) { _, _ in
+            if !isEditingReflection {
+                saveInterviewData()
+            }
+        }
+        .onChange(of: isEditingReflection) { _, newValue in
+            if !newValue {
+                // 편집 모드 종료 시 저장
+                saveInterviewData()
+            }
+        }
+    }
+    
+    private func loadInterviewData() {
+        loadCurrentTabData()
+    }
+    
+    private func loadCurrentTabData() {
+        guard let interviewData = item.interviewData else {
+            questions = []
+            reflectionText = ""
+            return
+        }
+        
+        let typeData: InterviewTypeData?
+        switch selectedTab {
+        case .codingOrAssignment:
+            typeData = interviewData.codingOrAssignment
+        case .technical:
+            typeData = interviewData.technical
+        case .personality:
+            typeData = interviewData.personality
+        }
+        
+        questions = typeData?.questions.filter { $0.interviewType == selectedTab.typeString } ?? []
+        reflectionText = typeData?.reflection ?? ""
+    }
+    
+    private func saveInterviewData() {
+        let currentTypeData = InterviewTypeData(
+            reflection: reflectionText.isEmpty ? nil : reflectionText,
+            questions: questions
+        )
+        
+        let existingData = item.interviewData ?? InterviewData(
+            codingOrAssignment: nil,
+            technical: nil,
+            personality: nil
+        )
+        
+        let newData: InterviewData
+        switch selectedTab {
+        case .codingOrAssignment:
+            newData = InterviewData(
+                codingOrAssignment: currentTypeData,
+                technical: existingData.technical,
+                personality: existingData.personality
+            )
+        case .technical:
+            newData = InterviewData(
+                codingOrAssignment: existingData.codingOrAssignment,
+                technical: currentTypeData,
+                personality: existingData.personality
+            )
+        case .personality:
+            newData = InterviewData(
+                codingOrAssignment: existingData.codingOrAssignment,
+                technical: existingData.technical,
+                personality: currentTypeData
+            )
+        }
+        
+        store.updateInterviewData(id: applicationId, interviewData: newData)
     }
 }
 
@@ -450,7 +531,7 @@ struct AddInterviewQuestionSheet: View {
                         id: UUID(),
                         question: question,
                         answer: answer.isEmpty ? nil : answer,
-                        interviewType: interviewType,
+                        interviewType: interviewType.typeString,
                         tags: tags,
                         notes: notes.isEmpty ? nil : notes,
                         createdAt: Date()
@@ -467,22 +548,20 @@ struct AddInterviewQuestionSheet: View {
     }
 }
 
-// MARK: - Models (임시)
+// MARK: - Models
 
 enum InterviewTab: String, CaseIterable {
     case codingOrAssignment = "코딩테스트 / 과제"
     case technical = "기술 면접"
     case personality = "인성 면접"
-}
-
-struct InterviewQuestion: Identifiable {
-    let id: UUID
-    let question: String
-    let answer: String?
-    let interviewType: InterviewTab
-    let tags: [String]
-    let notes: String?
-    let createdAt: Date
+    
+    var typeString: String {
+        switch self {
+        case .codingOrAssignment: return "codingOrAssignment"
+        case .technical: return "technical"
+        case .personality: return "personality"
+        }
+    }
 }
 
 #Preview {

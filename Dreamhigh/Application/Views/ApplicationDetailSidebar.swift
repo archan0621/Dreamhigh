@@ -353,7 +353,7 @@ struct ApplicationDetailSidebar: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
-                    InterviewQuestionsSection(applicationId: item.id)
+                    InterviewQuestionsSection(applicationId: item.id, item: item, store: store)
                 }
                 
                 Divider()

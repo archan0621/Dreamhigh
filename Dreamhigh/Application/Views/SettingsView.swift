@@ -6,28 +6,38 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct SettingsView: View {
     @StateObject private var settingsStore = SettingsStore.shared
+    let context: NSManagedObjectContext
+    
+    init() {
+        self.context = PersistenceController.shared.container.viewContext
+    }
     
     var body: some View {
         TabView {
-            AISettingsView()
+            AISettingsView(context: context)
                 .tabItem {
                     Label("AI", systemImage: "brain")
                 }
         }
-        .frame(width: 600, height: 400)
+        .frame(width: 700, height: 550)
     }
 }
 
 struct AISettingsView: View {
+    let context: NSManagedObjectContext
     @ObservedObject var settingsStore: SettingsStore
+    @StateObject private var tokenUsageStore: TokenUsageStore
     @State private var isTokenVisible = false
     @FocusState private var isTokenFieldFocused: Bool
     
-    init() {
+    init(context: NSManagedObjectContext) {
+        self.context = context
         _settingsStore = ObservedObject(wrappedValue: SettingsStore.shared)
+        _tokenUsageStore = StateObject(wrappedValue: TokenUsageStore(context: context))
     }
     
     var body: some View {
@@ -110,6 +120,73 @@ struct AISettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            
+            // 토큰 사용량 통계
+            if settingsStore.isAIConfigured {
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("총 토큰 사용량")
+                                    .font(.headline)
+                                Text("\(formatNumber(tokenUsageStore.totalTokens)) tokens")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.accentColor)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("예상 비용")
+                                    .font(.headline)
+                                Text("$\(String(format: "%.4f", tokenUsageStore.totalEstimatedCost))")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Input")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(formatNumber(tokenUsageStore.totalInputTokens)) tokens")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                            
+                            HStack {
+                                Text("Output")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(formatNumber(tokenUsageStore.totalOutputTokens)) tokens")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        Text("서비스별 사용량")
+                            .font(.headline)
+                            .padding(.top, 4)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            serviceUsageRow(service: "채용공고 분석")
+                            serviceUsageRow(service: "이력서 피드백")
+                            serviceUsageRow(service: "인사이트 리포트")
+                        }
+                    }
+                    .padding(.vertical, 8)
+                } header: {
+                    Text("토큰 사용 통계")
+                } footer: {
+                    Text("Claude Sonnet 4.5 기준 (Input: $3/M tokens, Output: $15/M tokens)")
+                        .font(.caption2)
+                }
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -118,5 +195,37 @@ struct AISettingsView: View {
             // 다른 여백 클릭 시 포커스 해제
             isTokenFieldFocused = false
         }
+        .onAppear {
+            tokenUsageStore.fetch()
+        }
+    }
+    
+    private func serviceUsageRow(service: String) -> some View {
+        let stats = tokenUsageStore.serviceStats(for: service)
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(service)
+                    .font(.subheadline)
+                Text("\(stats.count)회 호출")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(formatNumber(stats.inputTokens + stats.outputTokens)) tokens")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text("$\(String(format: "%.4f", stats.cost))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func formatNumber(_ number: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
     }
 }

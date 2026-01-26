@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     case applications = "지원 내역"
     case resumes = "이력서 버전"
+    case insights = "인사이트"
 
     var id: String { rawValue }
 
@@ -10,6 +11,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .applications: return "tray.full"
         case .resumes: return "doc.on.doc"
+        case .insights: return "chart.bar.fill"
         }
     }
 }

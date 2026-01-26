@@ -11,10 +11,12 @@ final class ClaudeAIService: AIServiceProtocol {
     private let apiKey: String
     private let model: String
     private let baseURL = "https://api.anthropic.com/v1/messages"
+    private let tokenUsageStore: TokenUsageStore?
     
-    init(apiKey: String, model: String) {
+    init(apiKey: String, model: String, tokenUsageStore: TokenUsageStore? = nil) {
         self.apiKey = apiKey
         self.model = model
+        self.tokenUsageStore = tokenUsageStore
     }
     
     func structureJobPosting(_ jobPostingText: String) async throws -> StructuredJobPosting {
@@ -62,6 +64,17 @@ final class ClaudeAIService: AIServiceProtocol {
         
         let decoder = JSONDecoder()
         let apiResponse = try decoder.decode(ClaudeAPIResponse.self, from: data)
+        
+        // 토큰 사용량 저장
+        Task { @MainActor in
+            try? tokenUsageStore?.save(
+                service: "채용공고 분석",
+                inputTokens: apiResponse.usage.inputTokens,
+                outputTokens: apiResponse.usage.outputTokens,
+                cacheCreationTokens: apiResponse.usage.cacheCreationInputTokens ?? 0,
+                cacheReadTokens: apiResponse.usage.cacheReadInputTokens ?? 0
+            )
+        }
         
         guard let content = apiResponse.content.first?.text else {
             throw AIServiceError.invalidResponse
@@ -153,6 +166,17 @@ final class ClaudeAIService: AIServiceProtocol {
         decoder.dateDecodingStrategy = .iso8601
         let apiResponse = try decoder.decode(ClaudeAPIResponse.self, from: data)
         
+        // 토큰 사용량 저장
+        Task { @MainActor in
+            try? tokenUsageStore?.save(
+                service: "이력서 피드백",
+                inputTokens: apiResponse.usage.inputTokens,
+                outputTokens: apiResponse.usage.outputTokens,
+                cacheCreationTokens: apiResponse.usage.cacheCreationInputTokens ?? 0,
+                cacheReadTokens: apiResponse.usage.cacheReadInputTokens ?? 0
+            )
+        }
+        
         guard let content = apiResponse.content.first?.text else {
             throw AIServiceError.invalidResponse
         }
@@ -181,6 +205,117 @@ final class ClaudeAIService: AIServiceProtocol {
             generatedAt: Date()
         )
     }
+    
+    func generateInsightReport(
+        applyHistories: [ApplyHistory],
+        resumeVersions: [ResumeVersion],
+        targetResumeVersionId: UUID?
+    ) async throws -> InsightReport {
+        let prompt = AIPrompts.generateInsightReport(
+            applyHistories: applyHistories,
+            resumeVersions: resumeVersions,
+            targetResumeVersionId: targetResumeVersionId
+        )
+        
+        let requestBody: [String: Any] = [
+            "model": model,
+            "max_tokens": 16384,
+            "messages": [
+                [
+                    "role": "user",
+                    "content": prompt
+                ]
+            ]
+        ]
+        
+        guard let url = URL(string: baseURL) else {
+            throw AIServiceError.invalidResponse
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.timeoutInterval = 180 // 3분 타임아웃
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            throw AIServiceError.invalidResponse
+        }
+        
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 180
+        configuration.timeoutIntervalForResource = 240
+        let session = URLSession(configuration: configuration)
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AIServiceError.networkError
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw AIServiceError.invalidAPIKey
+            }
+            throw AIServiceError.networkError
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let apiResponse = try decoder.decode(ClaudeAPIResponse.self, from: data)
+        
+        // 토큰 사용량 저장
+        Task { @MainActor in
+            try? tokenUsageStore?.save(
+                service: "인사이트 리포트",
+                inputTokens: apiResponse.usage.inputTokens,
+                outputTokens: apiResponse.usage.outputTokens,
+                cacheCreationTokens: apiResponse.usage.cacheCreationInputTokens ?? 0,
+                cacheReadTokens: apiResponse.usage.cacheReadInputTokens ?? 0
+            )
+        }
+        
+        guard let content = apiResponse.content.first?.text else {
+            throw AIServiceError.invalidResponse
+        }
+        
+        // JSON 추출 (마크다운 코드 블록 제거)
+        let jsonString = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw AIServiceError.invalidResponse
+        }
+
+        var report = try decoder.decode(InsightReportResponse.self, from: jsonData)
+        
+        return InsightReport(
+            overallPerformance: report.overallPerformance,
+            patterns: report.patterns,
+            resumeStrategy: report.resumeStrategy,
+            resumeLevelAndJD: report.resumeLevelAndJD,
+            techStackOptimization: report.techStackOptimization,
+            actionPlan: report.actionPlan,
+            generatedAt: Date()
+        )
+    }
+}
+
+// MARK: - Insight Report Response Models
+
+/// AI 응답에서 받는 InsightReport (generatedAt 제외)
+private struct InsightReportResponse: Codable {
+    let overallPerformance: OverallPerformance
+    let patterns: PatternAnalysis
+    let resumeStrategy: ResumeStrategyAnalysis
+    let resumeLevelAndJD: ResumeLevelAndJD
+    let techStackOptimization: TechStackOptimization
+    let actionPlan: ActionPlan
 }
 
 // MARK: - Response Models
@@ -200,10 +335,25 @@ private struct ResumeFeedbackResponse: Codable {
 
 private struct ClaudeAPIResponse: Codable {
     let content: [ClaudeContent]
+    let usage: ClaudeUsage
 }
 
 private struct ClaudeContent: Codable {
     let text: String
+}
+
+private struct ClaudeUsage: Codable {
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheCreationInputTokens: Int?
+    let cacheReadInputTokens: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+        case cacheCreationInputTokens = "cache_creation_input_tokens"
+        case cacheReadInputTokens = "cache_read_input_tokens"
+    }
 }
 
 enum AIServiceError: Error {

@@ -4,12 +4,16 @@ import UniformTypeIdentifiers
 import CoreData
 
 struct ResumeVersionsPage: View {
+    let context: NSManagedObjectContext
     @StateObject private var store: ResumeVersionStore
+    @StateObject private var tokenUsageStore: TokenUsageStore
     @State private var selectedVersion: ResumeVersion?
     @State private var isPresentingUpload = false
     
     init(context: NSManagedObjectContext) {
+        self.context = context
         _store = StateObject(wrappedValue: ResumeVersionStore(context: context))
+        _tokenUsageStore = StateObject(wrappedValue: TokenUsageStore(context: context))
     }
     
     var body: some View {
@@ -30,7 +34,7 @@ struct ResumeVersionsPage: View {
             }
             .navigationTitle("이력서 버전")
             .navigationDestination(item: $selectedVersion) { version in
-                ResumeVersionDetailView(version: version, store: store)
+                ResumeVersionDetailView(version: version, store: store, tokenUsageStore: tokenUsageStore)
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -43,6 +47,7 @@ struct ResumeVersionsPage: View {
                     .controlSize(.large)
                 }
             }
+            
         }
         .sheet(isPresented: $isPresentingUpload) {
             UploadResumeSheet(store: store) { newVersion in
@@ -131,6 +136,7 @@ struct PDFThumbnailView: NSViewRepresentable {
 struct ResumeVersionDetailView: View {
     let version: ResumeVersion
     @ObservedObject var store: ResumeVersionStore
+    @ObservedObject var tokenUsageStore: TokenUsageStore
     
     @State private var isAnalyzing = false
     @State private var analysisError: String?
@@ -289,7 +295,7 @@ struct ResumeVersionDetailView: View {
         
         Task {
             do {
-                guard let aiService = AIServiceFactory.createServiceFromSettings() else {
+                guard let aiService = AIServiceFactory.createServiceFromSettings(tokenUsageStore: tokenUsageStore) else {
                     await MainActor.run {
                         self.isAnalyzing = false
                         self.analysisError = "AI 설정을 확인해주세요"

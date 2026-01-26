@@ -29,6 +29,8 @@ struct ContentView: View {
                 ApplicationsPage(context: context)
             case .resumes:
                 ResumeVersionsPage(context: context)
+            case .insights:
+                InsightsPage(context: context)
             case .none:
                 Text("메뉴를 선택하세요")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

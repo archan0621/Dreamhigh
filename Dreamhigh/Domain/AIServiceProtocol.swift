@@ -18,6 +18,18 @@ protocol AIServiceProtocol {
     /// - Parameter pdfPath: 이력서 PDF 파일 경로
     /// - Returns: AI 피드백 결과
     func analyzeResume(pdfPath: String) async throws -> ResumeFeedback
+    
+    /// 지원 내역과 이력서를 분석하여 인사이트 리포트 생성
+    /// - Parameters:
+    ///   - applyHistories: 분석할 지원 내역 목록
+    ///   - resumeVersions: 분석할 이력서 버전 목록
+    ///   - targetResumeVersionId: 집중 분석할 이력서 버전 ID (nil이면 전체 종합)
+    /// - Returns: 인사이트 리포트 결과
+    func generateInsightReport(
+        applyHistories: [ApplyHistory],
+        resumeVersions: [ResumeVersion],
+        targetResumeVersionId: UUID?
+    ) async throws -> InsightReport
 }
 
 /// 구조화된 채용공고 정보

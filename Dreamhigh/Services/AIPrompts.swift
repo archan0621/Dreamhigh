@@ -125,4 +125,216 @@ enum AIPrompts {
           "summary": "1-2줄의 총평 (CTO가 내부 공유용으로 남길 법한 문장)"
         }
         """
+    
+    /// 인사이트 리포트 생성 프롬프트
+    static func generateInsightReport(
+        applyHistories: [ApplyHistory],
+        resumeVersions: [ResumeVersion],
+        targetResumeVersionId: UUID?
+    ) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        // 지원 내역 요약
+        let acceptedCount = applyHistories.filter { 
+            $0.documentStatus.lowercased().contains("합격") || 
+            $0.documentStatus.lowercased().contains("pass") ||
+            $0.documentStatus.lowercased().contains("accept")
+        }.count
+        let totalCount = applyHistories.count
+        let acceptanceRate = totalCount > 0 ? Double(acceptedCount) / Double(totalCount) * 100 : 0.0
+        
+        // 회사 유형별 분류
+        var companyTypes: [String: [ApplyHistory]] = [:]
+        var techStacks: [String: Int] = [:]
+        
+        for history in applyHistories {
+            // 회사 유형 추정 (간단한 휴리스틱)
+            let category = history.category.lowercased()
+            var companyType = "기타"
+            if category.contains("대기업") || category.contains("enterprise") {
+                companyType = "대기업"
+            } else if category.contains("스타트업") || category.contains("startup") {
+                companyType = "스타트업"
+            } else if category.contains("플랫폼") || category.contains("platform") {
+                companyType = "플랫폼"
+            } else if category.contains("커머스") || category.contains("commerce") {
+                companyType = "커머스"
+            }
+            
+            if companyTypes[companyType] == nil {
+                companyTypes[companyType] = []
+            }
+            companyTypes[companyType]?.append(history)
+            
+            // 기술 스택 수집
+            if let techStack = history.structuredJobPosting?.techStack {
+                for tech in techStack {
+                    techStacks[tech, default: 0] += 1
+                }
+            }
+        }
+        
+        // 이력서 버전별 통계
+        var versionStats: [String: (documentPass: Int, interviewEntry: Int, total: Int)] = [:]
+        for history in applyHistories {
+            let versionName = history.resumeVersionId.flatMap { id in
+                resumeVersions.first { $0.id == id }?.name
+            } ?? "미지정"
+            
+            var stats = versionStats[versionName] ?? (0, 0, 0)
+            stats.total += 1
+            
+            if history.documentStatus.lowercased().contains("합격") || 
+               history.documentStatus.lowercased().contains("pass") {
+                stats.documentPass += 1
+            }
+            
+            if !history.techInterviewStatus.isEmpty || !history.cultureInterviewStatus.isEmpty {
+                stats.interviewEntry += 1
+            }
+            
+            versionStats[versionName] = stats
+        }
+        
+        // 지원 내역 상세 정보
+        var historyDetails = "지원 내역:\n"
+        for (index, history) in applyHistories.enumerated() {
+            let versionName = history.resumeVersionId.flatMap { id in
+                resumeVersions.first { $0.id == id }?.name
+            } ?? "미지정"
+            
+            historyDetails += """
+            \(index + 1). 회사: \(history.companyName)
+               - 지원일: \(dateFormatter.string(from: history.appliedAt))
+               - 카테고리: \(history.category)
+               - 서류 결과: \(history.documentStatus)
+               - 기술 면접: \(history.techInterviewStatus.isEmpty ? "없음" : history.techInterviewStatus)
+               - 인성 면접: \(history.cultureInterviewStatus.isEmpty ? "없음" : history.cultureInterviewStatus)
+               - 사용 이력서: \(versionName)
+               - 기술 스택: \(history.structuredJobPosting?.techStack?.joined(separator: ", ") ?? "정보 없음")
+            
+            """
+        }
+        
+        // 이력서 버전 정보 및 실제 내용
+        var resumeDetails = "=== 이력서 실제 내용 분석 ===\n\n"
+        for version in resumeVersions {
+            resumeDetails += """
+            [이력서: \(version.name)] (생성일: \(dateFormatter.string(from: version.createdAt)))
+            
+            """
+            
+            // AI 피드백이 있으면 이력서의 실제 강점/약점 포함
+            if let feedback = version.aiFeedback {
+                resumeDetails += """
+                **이 이력서의 실제 강점 (AI 분석 기반):**
+                \(feedback.strengths.map { "- \($0)" }.joined(separator: "\n"))
+                
+                **이 이력서의 개선점:**
+                \(feedback.improvements.map { "- \($0)" }.joined(separator: "\n"))
+                
+                **첫인상:**
+                \(feedback.firstImpression)
+                
+                **종합 평가 (100점 만점):** \(feedback.overallScore)점
+                
+                """
+            } else {
+                resumeDetails += "(이력서 내용 분석 없음)\n\n"
+            }
+        }
+        
+        return """
+        # 역할
+        당신은 취업 데이터 분석가입니다. 지원자의 이력서 내용과 지원 결과를 분석하여, 어떤 이력서 요소가 합격/불합격으로 이어졌는지 패턴을 찾아냅니다.
+        
+        # 분석 규칙
+        1. **이력서 강점 섹션에 명시된 내용만 언급할 것**
+        2. 채용공고 기술 스택은 참고만 하고, 절대 이력서 내용인 것처럼 언급 금지
+        3. 추측하지 말고, 제공된 데이터만 사용할 것
+        
+        # 입력 데이터
+        
+        
+        ## 1. 전체 통계
+        - 지원: \(totalCount)건 | 합격: \(acceptedCount)건 | 합격률: \(String(format: "%.1f", acceptanceRate))%
+        
+        ## 2. 이력서 실제 내용 (분석 기준)
+        \(resumeDetails)
+        
+        ## 3. 회사별 지원 결과
+        \(historyDetails)
+        
+        ## 4. 이력서 버전별 성과
+        \(versionStats.map { version, stats in
+            let docRate = stats.total > 0 ? Double(stats.documentPass) / Double(stats.total) * 100 : 0
+            let interviewRate = stats.total > 0 ? Double(stats.interviewEntry) / Double(stats.total) * 100 : 0
+            return "- \(version): 서류 \(String(format: "%.0f", docRate))% / 면접 \(String(format: "%.0f", interviewRate))%"
+        }.joined(separator: "\n"))
+        
+        ## 5. 회사 유형 분포
+        \(companyTypes.map { "- \($0.key): \($0.value.count)건" }.joined(separator: "\n"))
+        
+        # 출력 형식 (JSON만 반환)
+        
+        
+        ```json
+        {
+          "overallPerformance": {
+            "acceptanceRate": \(String(format: "%.1f", acceptanceRate)),
+            "acceptedCount": \(acceptedCount),
+            "totalCount": \(totalCount),
+            "keyFindings": ["이력서 기반 핵심 발견 3개"]
+          },
+          "patterns": {
+            "acceptedPatterns": [
+              {"category": "이력서 강점", "value": "이력서의 실제 강점", "description": "왜 합격했는지"},
+              {"category": "회사 환경", "value": "합격률 높은 회사 유형", "description": "이 환경과 이력서의 매칭"}
+            ],
+            "rejectedPatterns": [
+              {"category": "이력서 약점", "value": "이력서의 실제 약점", "description": "왜 불합격했는지"},
+              {"category": "회사 환경", "value": "불합격률 높은 회사 유형", "description": "이 환경에서 이력서 부족한 점"}
+            ]
+          },
+          "resumeStrategy": {
+            "versionPerformance": [
+              {"versionName": "버전명", "documentPassRate": 0, "interviewEntryRate": 0, "status": "BEST|NORMAL|NEEDS_IMPROVEMENT"}
+            ],
+            "styleEffectiveness": [
+              {"style": "임팩트 중심", "effectiveness": "매우 높음|높음|보통|낮음", "description": "왜 효과적인지"},
+              {"style": "기술 중심", "effectiveness": "매우 높음|높음|보통|낮음", "description": "왜 효과적인지"}
+            ],
+            "companyGroupFit": [
+              {"companyGroup": "대기업", "fitLevel": "높음|보통|낮음", "description": "이력서 적합도"}
+            ]
+          },
+          "resumeLevelAndJD": {
+            "personaLevel": {
+              "perceivedLevel": "시니어|중급|주니어",
+              "targetPosition": "타겟 포지션",
+              "description": "이력서 레벨 설명"
+            },
+            "jdAlignment": [
+              {"type": "Overqualified", "count": 0, "description": "설명"},
+              {"type": "Underqualified", "count": 0, "description": "설명"}
+            ]
+          },
+          "techStackOptimization": {
+            "unhelpfulTechs": ["이력서의 도움 안 된 요소"],
+            "vanityTechs": ["이력서의 허영 요소"],
+            "shouldRemove": ["이력서에서 제거할 항목"],
+            "expertTip": "이력서 개선 팁"
+          },
+          "actionPlan": {
+            "phases": [
+              {"phase": "Phase 1", "title": "이력서 고도화", "tasks": ["작업1", "작업2"]},
+              {"phase": "Phase 2", "title": "지원 타겟 최적화", "tasks": ["작업1", "작업2"]},
+              {"phase": "Phase 3", "title": "면접 대비", "tasks": ["작업1", "작업2"]}
+            ]
+          }
+        }
+        ```
+        """
+    }
 }

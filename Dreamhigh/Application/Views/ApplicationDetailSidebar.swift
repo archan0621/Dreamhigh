@@ -8,6 +8,7 @@ struct ApplicationDetailSidebar: View {
     @ObservedObject var store: ApplyHistoryStore
     let context: NSManagedObjectContext
     @StateObject private var resumeStore: ResumeVersionStore
+    @StateObject private var tokenUsageStore: TokenUsageStore
     
     @State private var companyName: String
     @State private var appliedAt: Date
@@ -29,6 +30,7 @@ struct ApplicationDetailSidebar: View {
         self.store = store
         self.context = context
         _resumeStore = StateObject(wrappedValue: ResumeVersionStore(context: context))
+        _tokenUsageStore = StateObject(wrappedValue: TokenUsageStore(context: context))
         _companyName = State(initialValue: item.companyName)
         _appliedAt = State(initialValue: item.appliedAt)
         _selectedCategory = State(initialValue: CompanyCategory.allCases.first { $0.rawValue == item.category })
@@ -466,7 +468,7 @@ struct ApplicationDetailSidebar: View {
             let crawledText = try await JobPostingCrawler.shared.crawl(jobPostingURL)
             
             // 2. AI 구조화
-            guard let aiService = AIServiceFactory.createServiceFromSettings() else {
+            guard let aiService = AIServiceFactory.createServiceFromSettings(tokenUsageStore: tokenUsageStore) else {
                 await MainActor.run {
                     crawlError = "AI 서비스를 초기화할 수 없습니다."
                 }

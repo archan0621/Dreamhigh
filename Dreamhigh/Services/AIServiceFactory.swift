@@ -6,12 +6,13 @@
 //
 
 import Foundation
+import CoreData
 
 final class AIServiceFactory {
-    static func createService(provider: AIProvider, apiKey: String, model: String) -> AIServiceProtocol? {
+    static func createService(provider: AIProvider, apiKey: String, model: String, tokenUsageStore: TokenUsageStore? = nil) -> AIServiceProtocol? {
         switch provider {
         case .claude:
-            return ClaudeAIService(apiKey: apiKey, model: model)
+            return ClaudeAIService(apiKey: apiKey, model: model, tokenUsageStore: tokenUsageStore)
         // case .chatgpt:
         //     // TODO: ChatGPT 구현체 추가
         //     return nil
@@ -21,7 +22,7 @@ final class AIServiceFactory {
         }
     }
     
-    static func createServiceFromSettings() -> AIServiceProtocol? {
+    static func createServiceFromSettings(tokenUsageStore: TokenUsageStore? = nil) -> AIServiceProtocol? {
         let settingsStore = SettingsStore.shared
         
         guard let provider = settingsStore.selectedAIProvider,
@@ -30,6 +31,6 @@ final class AIServiceFactory {
             return nil
         }
         
-        return createService(provider: provider, apiKey: settingsStore.apiToken, model: model.rawValue)
+        return createService(provider: provider, apiKey: settingsStore.apiToken, model: model.rawValue, tokenUsageStore: tokenUsageStore)
     }
 }

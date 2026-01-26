@@ -20,4 +20,5 @@ struct ApplyHistory: Identifiable {
     let jobPostingURL: String? // 채용공고 링크
     let content: String
     let structuredJobPosting: StructuredJobPosting? // 분석된 채용공고 정보
+    let interviewData: InterviewData? // 면접 질문/답변 및 회고
 }

@@ -102,7 +102,7 @@
   - PDF 썸네일 미리보기
   - App Store 스타일 상세보기 전환
 
-### 7. 면접 질문/답변 기록 UI ✅
+### 7. 면접 질문/답변 기록 ✅
 - 지원 내역 상세 페이지에 면접 질문/답변 섹션 추가
 - 전형별 탭 구성
   - 코딩테스트 / 과제
@@ -113,6 +113,7 @@
   - 클릭하여 편집 모드 진입
   - 플레이스홀더: "전형을 마친 후 들었던 생각, 느낀 점, 개선할 점 등을 자유롭게 작성하세요"
   - 편집 전후 동일한 박스 크기 (minHeight: 120)
+  - 자동 저장 (편집 완료 시)
 - 질문 카드 UI
   - 접기/펼치기 기능
   - 질문, 답변, 태그, 메모 표시
@@ -123,6 +124,12 @@
   - 태그 추가/제거
   - 메모 입력
 - 빈 상태 UI (질문이 없을 때)
+- CoreData 연동
+  - `ApplyHistoryEntity`에 `interviewQuestionsData` 필드 추가 (JSON 문자열)
+  - `InterviewData`, `InterviewTypeData`, `InterviewQuestion` 도메인 모델 구현
+  - `ApplyHistory`에 `interviewData` 필드 추가
+  - `ApplyHistoryStore.updateInterviewData()` 메서드 구현
+  - 자동 저장/로드 (질문 추가, 회고 작성, 탭 전환 시)
 
 ## 🔧 기술적 개선사항
 

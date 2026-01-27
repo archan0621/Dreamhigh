@@ -32,8 +32,21 @@ struct OverallPerformance: Codable {
     let acceptedCount: Int
     /// 전체 지원 건수
     let totalCount: Int
+    /// 전형 단계별 통계
+    let stageStats: StageStats?
     /// 주요 성과 요약 (3-5개)
     let keyFindings: [String]
+}
+
+struct StageStats: Codable {
+    let document: StageResult
+    let techInterview: StageResult
+    let cultureInterview: StageResult
+}
+
+struct StageResult: Codable {
+    let passed: Int
+    let rate: Double
 }
 
 struct PatternAnalysis: Codable {

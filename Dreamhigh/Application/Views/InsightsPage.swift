@@ -450,7 +450,7 @@ struct InsightsPage: View {
             
             HStack(spacing: 100) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("전체 합격률")
+                    Text("최종 합격률")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -473,7 +473,42 @@ struct InsightsPage: View {
                     }
                 }
             }
+            
+            // 전형 단계별 통계 (있는 경우에만 표시)
+            if let stageStats = report.overallPerformance.stageStats {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("전형 단계별 통과율")
+                        .font(.system(size: 18, weight: .bold))
+                    
+                    HStack(spacing: 32) {
+                        stageStatCard(title: "서류 전형", passed: stageStats.document.passed, rate: stageStats.document.rate)
+                        stageStatCard(title: "기술 면접", passed: stageStats.techInterview.passed, rate: stageStats.techInterview.rate)
+                        stageStatCard(title: "인성 면접", passed: stageStats.cultureInterview.passed, rate: stageStats.cultureInterview.rate)
+                    }
+                }
+                .padding(.top, 20)
+            }
         }
+    }
+    
+    private func stageStatCard(title: String, passed: Int, rate: Double) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+            
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(String(format: "%.0f", rate))%")
+                    .font(.system(size: 36, weight: .bold))
+                Text("(\(passed)건)")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Color.secondary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
     
     // MARK: - 3. 합격/불합격 심층 패턴 분석
@@ -821,15 +856,20 @@ struct InsightsPage: View {
     }
 
     private var acceptedCount: Int {
-        applyHistoryStore.items.filter { $0.documentStatus.lowercased().contains("합격") || 
-                                         $0.documentStatus.lowercased().contains("pass") ||
-                                         $0.documentStatus.lowercased().contains("accept") }.count
+        applyHistoryStore.items.filter { 
+            let status = $0.documentStatus.lowercased()
+            return !status.contains("불합격") && !status.contains("탈락") && 
+                   !status.contains("fail") && !status.contains("reject") &&
+                   (status.contains("합격") || status.contains("pass") || status.contains("accept"))
+        }.count
     }
     
     private var rejectedCount: Int {
-        applyHistoryStore.items.filter { $0.documentStatus.lowercased().contains("불합격") || 
-                                         $0.documentStatus.lowercased().contains("fail") ||
-                                         $0.documentStatus.lowercased().contains("reject") }.count
+        applyHistoryStore.items.filter { 
+            let status = $0.documentStatus.lowercased()
+            return status.contains("불합격") || status.contains("탈락") ||
+                   status.contains("fail") || status.contains("reject")
+        }.count
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -860,6 +900,18 @@ struct InsightsPage: View {
         
         Task {
             do {
+                // 디버깅: 실제 전달되는 데이터 개수 확인
+                print("📊 인사이트 분석 시작:")
+                print("- 전체 지원 내역: \(applyHistoryStore.items.count)건")
+                print("- 사용된 이력서 버전: \(usedResumeVersions.count)개")
+                
+                // 지원 내역 상태별 집계
+                let statusCounts = Dictionary(grouping: applyHistoryStore.items) { $0.documentStatus }
+                print("- 상태별 집계:")
+                for (status, items) in statusCounts.sorted(by: { $0.key < $1.key }) {
+                    print("  - \(status): \(items.count)건")
+                }
+                
                 // 지원 내역에 실제로 사용된 이력서 버전만 전달
                 let report = try await aiService.generateInsightReport(
                     applyHistories: applyHistoryStore.items,

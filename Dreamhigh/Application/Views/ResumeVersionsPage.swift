@@ -34,7 +34,7 @@ struct ResumeVersionsPage: View {
             }
             .navigationTitle("이력서 버전")
             .navigationDestination(item: $selectedVersion) { version in
-                ResumeVersionDetailView(version: version, store: store, tokenUsageStore: tokenUsageStore)
+                ResumeVersionDetailView(version: version, store: store, tokenUsageStore: tokenUsageStore, context: context)
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -137,10 +137,23 @@ struct ResumeVersionDetailView: View {
     let version: ResumeVersion
     @ObservedObject var store: ResumeVersionStore
     @ObservedObject var tokenUsageStore: TokenUsageStore
+    let context: NSManagedObjectContext
     
+    @StateObject private var applyHistoryStore: ApplyHistoryStore
+    @Environment(\.dismiss) private var dismiss
     @State private var isAnalyzing = false
     @State private var analysisError: String?
     @State private var aiFeedback: ResumeFeedback?
+    @State private var showDeleteAlert = false
+    @State private var showCannotDeleteAlert = false
+    
+    init(version: ResumeVersion, store: ResumeVersionStore, tokenUsageStore: TokenUsageStore, context: NSManagedObjectContext) {
+        self.version = version
+        self.store = store
+        self.tokenUsageStore = tokenUsageStore
+        self.context = context
+        _applyHistoryStore = StateObject(wrappedValue: ApplyHistoryStore(context: context))
+    }
     
     var body: some View {
         HSplitView {
@@ -267,6 +280,32 @@ struct ResumeVersionDetailView: View {
             .frame(minWidth: 500, idealWidth: 600)
         }
         .navigationTitle(version.name)
+        .toolbar {
+            ToolbarItem(placement: .destructiveAction) {
+                Button(role: .destructive) {
+                    if isVersionInUse() {
+                        showCannotDeleteAlert = true
+                    } else {
+                        showDeleteAlert = true
+                    }
+                } label: {
+                    Label("삭제", systemImage: "trash")
+                }
+            }
+        }
+        .alert("이력서 버전 삭제", isPresented: $showDeleteAlert) {
+            Button("취소", role: .cancel) { }
+            Button("삭제", role: .destructive) {
+                deleteVersion()
+            }
+        } message: {
+            Text("'\(version.name)' 버전을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")
+        }
+        .alert("삭제할 수 없습니다", isPresented: $showCannotDeleteAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("이 이력서는 \(usageCount())건의 지원 내역에서 사용 중입니다.\n사용 중인 이력서는 삭제할 수 없습니다.")
+        }
         .onAppear {
             // CoreData에서 직접 다시 조회
             if let storedVersion = store.getVersion(by: version.id) {
@@ -274,6 +313,9 @@ struct ResumeVersionDetailView: View {
             } else {
                 aiFeedback = version.aiFeedback
             }
+            
+            // 지원 내역 fetch
+            applyHistoryStore.fetch()
         }
         .onChange(of: version.id) { _, newID in
             // CoreData에서 직접 다시 조회
@@ -284,6 +326,19 @@ struct ResumeVersionDetailView: View {
             }
             analysisError = nil
         }
+    }
+    
+    private func isVersionInUse() -> Bool {
+        return applyHistoryStore.items.contains { $0.resumeVersionId == version.id }
+    }
+    
+    private func usageCount() -> Int {
+        return applyHistoryStore.items.filter { $0.resumeVersionId == version.id }.count
+    }
+    
+    private func deleteVersion() {
+        store.delete(ids: [version.id])
+        dismiss()
     }
     
     private func analyzeResume() {

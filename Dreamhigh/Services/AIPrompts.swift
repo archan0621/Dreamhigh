@@ -135,32 +135,40 @@ enum AIPrompts {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
-        // 지원 내역 요약
-        let acceptedCount = applyHistories.filter { 
-            $0.documentStatus.lowercased().contains("합격") || 
-            $0.documentStatus.lowercased().contains("pass") ||
-            $0.documentStatus.lowercased().contains("accept")
-        }.count
-        let totalCount = applyHistories.count
-        let acceptanceRate = totalCount > 0 ? Double(acceptedCount) / Double(totalCount) * 100 : 0.0
+        // 단계별 합격 판단 헬퍼 함수
+        func isPassedStatus(_ status: String) -> Bool {
+            let lowered = status.lowercased()
+            return !lowered.contains("불합격") && !lowered.contains("탈락") && 
+                   !lowered.contains("fail") && !lowered.contains("reject") &&
+                   (lowered.contains("합격") || lowered.contains("pass") || lowered.contains("accept"))
+        }
         
-        // 회사 유형별 분류
+        // 전형 단계별 통과 집계
+        let documentPassCount = applyHistories.filter { isPassedStatus($0.documentStatus) }.count
+        let techInterviewPassCount = applyHistories.filter { 
+            !$0.techInterviewStatus.isEmpty && isPassedStatus($0.techInterviewStatus)
+        }.count
+        let cultureInterviewPassCount = applyHistories.filter { 
+            !$0.cultureInterviewStatus.isEmpty && isPassedStatus($0.cultureInterviewStatus)
+        }.count
+        
+        // 최종 합격 (모든 단계 통과)
+        let finalPassCount = applyHistories.filter { history in
+            isPassedStatus(history.documentStatus) &&
+            (history.techInterviewStatus.isEmpty || isPassedStatus(history.techInterviewStatus)) &&
+            (history.cultureInterviewStatus.isEmpty || isPassedStatus(history.cultureInterviewStatus))
+        }.count
+        
+        let totalCount = applyHistories.count
+        let acceptanceRate = totalCount > 0 ? Double(finalPassCount) / Double(totalCount) * 100 : 0.0
+        
+        // 회사 유형별 분류 (CoreData의 category 그대로 사용)
         var companyTypes: [String: [ApplyHistory]] = [:]
         var techStacks: [String: Int] = [:]
         
         for history in applyHistories {
-            // 회사 유형 추정 (간단한 휴리스틱)
-            let category = history.category.lowercased()
-            var companyType = "기타"
-            if category.contains("대기업") || category.contains("enterprise") {
-                companyType = "대기업"
-            } else if category.contains("스타트업") || category.contains("startup") {
-                companyType = "스타트업"
-            } else if category.contains("플랫폼") || category.contains("platform") {
-                companyType = "플랫폼"
-            } else if category.contains("커머스") || category.contains("commerce") {
-                companyType = "커머스"
-            }
+            // category 필드를 그대로 사용 (추정하지 않음)
+            let companyType = history.category.isEmpty ? "미분류" : history.category
             
             if companyTypes[companyType] == nil {
                 companyTypes[companyType] = []
@@ -185,8 +193,10 @@ enum AIPrompts {
             var stats = versionStats[versionName] ?? (0, 0, 0)
             stats.total += 1
             
-            if history.documentStatus.lowercased().contains("합격") || 
-               history.documentStatus.lowercased().contains("pass") {
+            let status = history.documentStatus.lowercased()
+            // "불합격"이 아닌 경우에만 "합격" 키워드 체크
+            if !status.contains("불합격") && !status.contains("탈락") && !status.contains("fail") && !status.contains("reject") &&
+               (status.contains("합격") || status.contains("pass")) {
                 stats.documentPass += 1
             }
             
@@ -253,12 +263,18 @@ enum AIPrompts {
         1. **이력서 강점 섹션에 명시된 내용만 언급할 것**
         2. 채용공고 기술 스택은 참고만 하고, 절대 이력서 내용인 것처럼 언급 금지
         3. 추측하지 말고, 제공된 데이터만 사용할 것
+        4. **중요: 아래 제공된 지원 내역은 정확히 \(totalCount)건이며, 이 숫자를 그대로 사용할 것**
+        5. **중요: 전형 단계별 통과 현황을 정확히 반영할 것**
         
         # 입력 데이터
         
         
-        ## 1. 전체 통계
-        - 지원: \(totalCount)건 | 합격: \(acceptedCount)건 | 합격률: \(String(format: "%.1f", acceptanceRate))%
+        ## 1. 전체 통계 (반드시 이 숫자를 그대로 사용)
+        - 총 지원 건수: \(totalCount)건
+        - 서류 통과: \(documentPassCount)건 (\(String(format: "%.1f", totalCount > 0 ? Double(documentPassCount) / Double(totalCount) * 100 : 0))%)
+        - 기술 면접 통과: \(techInterviewPassCount)건
+        - 인성 면접 통과: \(cultureInterviewPassCount)건
+        - 최종 합격: \(finalPassCount)건 (합격률 \(String(format: "%.1f", acceptanceRate))%)
         
         ## 2. 이력서 실제 내용 (분석 기준)
         \(resumeDetails)
@@ -283,8 +299,13 @@ enum AIPrompts {
         {
           "overallPerformance": {
             "acceptanceRate": \(String(format: "%.1f", acceptanceRate)),
-            "acceptedCount": \(acceptedCount),
+            "acceptedCount": \(finalPassCount),
             "totalCount": \(totalCount),
+            "stageStats": {
+              "document": {"passed": \(documentPassCount), "rate": \(String(format: "%.1f", totalCount > 0 ? Double(documentPassCount) / Double(totalCount) * 100 : 0))},
+              "techInterview": {"passed": \(techInterviewPassCount), "rate": \(String(format: "%.1f", documentPassCount > 0 ? Double(techInterviewPassCount) / Double(documentPassCount) * 100 : 0))},
+              "cultureInterview": {"passed": \(cultureInterviewPassCount), "rate": \(String(format: "%.1f", documentPassCount > 0 ? Double(cultureInterviewPassCount) / Double(documentPassCount) * 100 : 0))}
+            },
             "keyFindings": ["이력서 기반 핵심 발견 3개"]
           },
           "patterns": {
